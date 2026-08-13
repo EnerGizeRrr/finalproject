@@ -1,0 +1,808 @@
+openapi: 3.0.0
+info:
+  title: API управления задачами
+  version: 1.0.0
+  description: |
+    API для управления задачами, проектами и комментариями.
+    
+    **Аутентификация:**
+    Этот API использует аутентификацию по Bearer Token (Sanctum). Для аутентификации включите заголовок `Authorization` с действительным токеном:
+    `Authorization: Bearer {ваш_токен}`
+servers:
+  - url: http://localhost/api/v1
+    description: Локальный сервер разработки
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+paths:
+  /projects:
+    get:
+      summary: Получить все проекты
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  links:
+                    $ref: '#/components/schemas/PaginationLinks'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Создать новый проект
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '201':
+          description: Проект создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+  /projects/{id}:
+    get:
+      summary: Получить проект по ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+    put:
+      summary: Обновить проект
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '200':
+          description: Проект обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+    delete:
+      summary: Удалить проект
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Проект успешно удален
+        '404':
+          description: Проект не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /projects/{projectId}/tasks:
+    get:
+      summary: Получить все задачи для проекта
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ "new", "in_progress", "blocked", "done", "cancelled" ]
+          description: Фильтр задач по статусу
+        - in: query
+          name: priority
+          schema:
+            type: string
+            enum: [ "low", "normal", "high", "critical" ]
+          description: Фильтр задач по приоритету
+        - in: query
+          name: due_date_from
+          schema:
+            type: string
+            format: date
+          description: Фильтр задач по дате выполнения от (ГГГГ-ММ-ДД)
+        - in: query
+          name: due_date_to
+          schema:
+            type: string
+            format: date
+          description: Фильтр задач по дате выполнения до (ГГГГ-ММ-ДД)
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  links:
+                    $ref: '#/components/schemas/PaginationLinks'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Создать новую задачу
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '201':
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+  /projects/{projectId}/tasks/cursor:
+    get:
+      summary: Получить задачи для проекта с использованием курсорной пагинации
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: last_id
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  links: # Cursor pagination links
+                    type: object
+                    properties:
+                      next:
+                        type: string
+                        format: uri
+                        nullable: true
+  /tasks:
+    get:
+      summary: Получить все задачи (по всем доступным проектам)
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ "new", "in_progress", "blocked", "done", "cancelled" ]
+          description: Фильтр задач по статусу
+        - in: query
+          name: priority
+          schema:
+            type: string
+            enum: [ "low", "normal", "high", "critical" ]
+          description: Фильтр задач по приоритету
+        - in: query
+          name: due_date_from
+          schema:
+            type: string
+            format: date
+          description: Фильтр задач по дате выполнения от (ГГГГ-ММ-ДД)
+        - in: query
+          name: due_date_to
+          schema:
+            type: string
+            format: date
+          description: Фильтр задач по дате выполнения до (ГГГГ-ММ-ДД)
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Поиск задач по заголовку
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskPaginatedResponse'
+  /tasks/{id}:
+    get:
+      summary: Получить задачу по ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+    put:
+      summary: Обновить задачу
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '200':
+          description: Задача обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+    delete:
+      summary: Удалить задачу
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Задача успешно удалена
+        '404':
+          description: Задача не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /tasks/{taskId}/comments:
+    get:
+      summary: Получить все комментарии для задачи
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+                  links:
+                    $ref: '#/components/schemas/PaginationLinks'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Создать новый комментарий
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentInput'
+      responses:
+        '201':
+          description: Комментарий создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+  /projects/{projectId}/webhooks:
+    get:
+      summary: Получить все подписки на веб-хуки для проекта
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookSubscription'
+                  links:
+                    $ref: '#/components/schemas/PaginationLinks'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Создать новую подписку на веб-хук для проекта
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookSubscriptionInput'
+      responses:
+        '201':
+          description: Подписка на веб-хук создана
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/WebhookSubscription'
+                  - type: object
+                    properties:
+                      secret:
+                        type: string
+                        description: Секретный ключ для подписи запросов веб-хуков (возвращается только при создании)
+                        writeOnly: true # Secret should not be returned on subsequent reads
+                        example: "random_generated_secret_string"
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+  /webhooks/{webhookId}:
+    get:
+      summary: Получить конкретную подписку на веб-хук
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+        '404':
+          description: Подписка на веб-хук не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Обновить подписку на веб-хук
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookSubscriptionInput'
+      responses:
+        '200':
+          description: Подписка на веб-хук обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+    delete:
+      summary: Удалить подписку на веб-хук
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Подписка на веб-хук успешно удалена
+        '404':
+          description: Подписка на веб-хук не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /health:
+    get:
+      summary: Проверка работоспособности (Health check)
+      responses:
+        '200':
+          description: Сервис работоспособен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /ready:
+    get:
+      summary: Проверка готовности (Readiness check)
+      responses:
+        '200':
+          description: Сервис готов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        '503':
+          description: Сервис не готов (например, сбой подключения к БД или Redis)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Service is not ready
+                  error:
+                    type: string
+                    example: Connection refused
+  /metrics:
+    get:
+      summary: Эндпоинт метрик
+      responses:
+        '200':
+          description: Ответ с метриками
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  memory_peak_usage:
+                    type: string
+                    example: 12.34MB
+                  laravel_version:
+                    type: string
+                    example: 12.0.0
+components:
+  schemas:
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        owner_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProjectInput:
+      type: object
+      properties:
+        name:
+          type: string
+          required: true
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [ "new", "in_progress", "blocked", "done", "cancelled" ]
+        priority:
+          type: string
+          enum: [ "low", "normal", "high", "critical" ]
+        due_date:
+          type: string
+          format: date
+        project_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TaskInput:
+      type: object
+      properties:
+        title:
+          type: string
+          required: true
+        description:
+          type: string
+        status: # Optional for update, required for create if default is not set
+          type: string
+          enum: [ "new", "in_progress", "blocked", "done", "cancelled" ] # Corrected enum values
+        priority: # Optional for update, required for create if default is not set
+          type: string
+          enum: [ "low", "normal", "high", "critical" ] # Corrected enum values
+        due_date:
+          type: string
+          format: date
+        project_id:
+          type: integer
+          required: true
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        body:
+          type: string
+        task_id:
+          type: integer
+        user_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CommentInput:
+      type: object
+      properties:
+        body:
+          type: string
+          required: true
+        task_id:
+          type: integer
+          required: true
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        project_id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          description: URL для отправки запросов веб-хуков.
+        events:
+          type: array
+          items:
+            type: string
+            enum: [ "task.completed", "task.status_changed" ]
+          description: Список событий, на которые подписан этот веб-хук.
+        enabled:
+          type: boolean
+          description: Активна ли подписка на веб-хук.
+          default: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    WebhookSubscriptionInput:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          required: true
+          description: URL для отправки запросов веб-хуков.
+        events:
+          type: array
+          items:
+            type: string
+            enum: [ "task.completed", "task.status_changed" ]
+          required: true
+          description: Список событий, на которые подписан этот веб-хук.
+        enabled:
+          type: boolean
+          description: Активна ли подписка на веб-хук.
+          default: true
+    WebhookAttempt:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        idempotency_key:
+          type: string
+          format: uuid
+          readOnly: true
+        webhook_subscription_id:
+          type: integer
+          readOnly: true
+        status:
+          type: string
+          enum: [ "success", "failed" ]
+          readOnly: true
+        status_code:
+          type: integer
+          nullable: true
+          readOnly: true
+        response_body:
+          type: string
+          nullable: true
+          readOnly: true
+        payload:
+          type: object # Or more specific schema if known
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PaginationLinks:
+      type: object
+      properties:
+        first: { type: string, format: uri, nullable: true }
+        last: { type: string, format: uri, nullable: true }
+        prev: { type: string, format: uri, nullable: true }
+        next: { type: string, format: uri, nullable: true }
+    PaginationMeta:
+      type: object
+      properties:
+        current_page: { type: integer }
+        from: { type: integer, nullable: true }
+        last_page: { type: integer }
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              url: { type: string, format: uri, nullable: true }
+              label: { type: string }
+              active: { type: boolean }
+        path: { type: string, format: uri }
+        per_page: { type: integer }
+        to: { type: integer, nullable: true }
+        total: { type: integer }
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Неаутентифицирован."
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Предоставленные данные недействительны."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+              example: "Поле 'name' является обязательным."
+    TaskPaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
