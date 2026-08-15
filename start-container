@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+if [ ! -z "$WWWUSER" ]; then
+    usermod -u $WWWUSER sail
+fi
+
+if [ ! -d /.composer ]; then
+    mkdir /.composer
+fi
+
+chmod -R 777 /.composer
+
+if [ $# -gt 0 ]; then
+    exec "$@"
+else
+    exec php artisan serve --host=0.0.0.0 --port=80
+fi
