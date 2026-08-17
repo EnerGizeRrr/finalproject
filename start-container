@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+if [ ! -z "$WWWUSER" ]; then
+    usermod -u $WWWUSER sail
+fi
+
+if [ ! -d /.composer ]; then
+    mkdir /.composer
+fi
+
+chmod -R 777 /.composer
+
+if [ $# -gt 0 ]; then
+    exec "$@"
+else
+    exec /usr/local/bin/init_app.sh
+fi
